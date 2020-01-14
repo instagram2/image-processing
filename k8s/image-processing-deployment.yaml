@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-processing-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: image-processing
+  template:
+    metadata:
+      labels:
+        app: image-processing
+    spec:
+      containers:
+      - image: instagram2/image-processing:latest
+        name: image-processing
+        env:
+          - name: KUMULUZEE_DISCOVERY_CLUSTER
+            value: gcloud
+          - name: KUMULUZEE_DISCOVERY_ETCD_HOSTS
+            value: http://etcd:2379
+          - name: KUMULUZEE_SERVER_BASEURL
+            value: http://35.240.79.227:8080
+        ports:
+        - containerPort: 8088
+          name: server
+          protocol: TCP
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-processing
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8088
+    protocol: TCP
+    targetPort: server
+  selector:
+    app: image-processing
