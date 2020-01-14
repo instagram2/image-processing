@@ -87,8 +87,6 @@ public class ImageProcessorResource {
                 .getService();
                 */
 
-        GoogleCredentials auth = GoogleCredentials.fromStream();
-
         Storage storage = StorageOptions.getDefaultInstance().getService();
 
         /* Generate new file name for storage and prepare the file for uploading. */
