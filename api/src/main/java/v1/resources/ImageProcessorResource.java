@@ -1,13 +1,14 @@
 package v1.resources;
 
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.storage.BlobId;
-import com.google.cloud.storage.BlobInfo;
-import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageOptions;
-import com.google.cloud.storage.Acl;
-import com.google.cloud.storage.Acl.Role;
-import com.google.cloud.storage.Acl.User;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.Bucket;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.Part;
@@ -16,15 +17,18 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Base64;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.UUID;
+import org.apache.commons.codec.digest.*;
 
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
@@ -37,7 +41,7 @@ public class ImageProcessorResource {
         
         /* Upload the image to the GCP Storage and get the url. */
         try {
-            String url = gcpUpload(imageFile);
+            String url = s3Upload(imageFile);
             return Response.ok(url).build();
         } catch (Exception e) {
             return Response.ok(e).build();
@@ -64,34 +68,20 @@ public class ImageProcessorResource {
         
     }
 
-    private String gcpUpload(InputStream imageFile) throws Exception {
-        /* Check file by the name. 
-        String fileName = filePart.getSubmittedFileName();
+    private String s3Upload(InputStream imageFile) throws Exception {
 
-        if (fileName == null || fileName.isEmpty() || !fileName.contains(".")) {
-            throw new Exception("Invalid file name.");
-        }
+        AWSCredentials credentials = new BasicAWSCredentials(
+            "AKIAVSWZG4K4PGYBJIVX", "4+ePbrDbA3JuZbIWcjpEi8a1FtEptyaOT4aXnJxR"
+        );
 
-        String fileNameExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-        if (!(fileNameExtension.equals("jpg") || fileNameExtension.equals("png"))) {
-            throw new Exception("File should be either jpg or png.");
-        }
-        */
+        AmazonS3Client s3Client = new AmazonS3Client(credentials);
 
-        /* Get the storage object. 
-        Storage storage = StorageOptions
-                .newBuilder()
-                .setCredentials(GoogleCredentials.fromStream(new ByteArrayInputStream(cfg.getGcpKey().getBytes())))
-                .setProjectId("double-folio-260711")
-                .build()
-                .getService();
-                */
-
-        Storage storage = StorageOptions.getDefaultInstance().getService();
+        String bucketName = "instagram2-storage";
 
         /* Generate new file name for storage and prepare the file for uploading. */
         String storageFileName = UUID.randomUUID().toString() + "." + "png";
 
+        
         InputStream fileStream = imageFile;
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         byte[] readBuf = new byte[4096];
@@ -100,19 +90,17 @@ public class ImageProcessorResource {
             outputStream.write(readBuf, 0, bytesRead);
         }
         byte[] storageFileData = outputStream.toByteArray();
+        
 
-        /* Upload and return the url. */
-        BlobInfo blobInfo =
-        storage.create(
-            BlobInfo
-                .newBuilder("instagram2-storage", storageFileName)
-                // Modify access list to allow all users with link to read file
-                .setAcl(new ArrayList<>(Arrays.asList(Acl.of(User.ofAllUsers(), Role.READER))))
-                .build(),
-            outputStream.toByteArray());
-        // return the public download link
-   
-        return blobInfo.getMediaLink();   
+        ObjectMetadata metadata = new ObjectMetadata();
+        byte[] resultByte = DigestUtils.md5(storageFileData);
+        String streamMD5 = new String(Base64.getEncoder().encode(resultByte));
+        metadata.setContentMD5(streamMD5);
+        metadata.setContentLength(Long.valueOf(storageFileData.length));
+
+        s3Client.putObject(bucketName, storageFileName, new ByteArrayInputStream(outputStream.toByteArray()), metadata);
+
+        return storageFileName;
     }
 }
 
