@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.UUID;
 import org.apache.commons.codec.digest.*;
+import com.mashape.unirest.http.*;
 
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
@@ -68,6 +69,31 @@ public class ImageProcessorResource {
         
     }
 
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Path("/label")
+    public Response labelImage(@QueryParam("imageUrl") String url) {
+        try {
+            HttpResponse<String> response = Unirest
+                    .post("https://image-labeling1.p.rapidapi.com/img/label")
+                    .header("x-rapidapi-host", "image-labeling1.p.rapidapi.com")
+                    .header("x-rapidapi-key", "f889ecc9b1msh8f7bcc1e724b982p15917djsn33b5cdb9222e")
+                    .header("content-type", "application/json")
+                    .header("accept", "application/json")
+                    .body("{\"url\": \"" + "https://instagram2-storage.s3.us-east-2.amazonaws.com/" + url + "\"}")
+                    .asString();
+
+            String[] parts = response.getBody().split("\"");
+            System.out.println(parts);
+
+            return Response.ok(parts).build();
+        }
+        catch (Exception e) {
+            System.err.println(e);
+            return Response.ok(e).build();
+        }
+    }
+
     private String s3Upload(InputStream imageFile) throws Exception {
 
         AWSCredentials credentials = new BasicAWSCredentials(
@@ -101,6 +127,26 @@ public class ImageProcessorResource {
         s3Client.putObject(bucketName, storageFileName, new ByteArrayInputStream(outputStream.toByteArray()), metadata);
 
         return storageFileName;
+    }
+
+    public String getLabels(String url) {
+        try {
+            HttpResponse<String> response = Unirest
+                    .post("https://image-labeling1.p.rapidapi.com/img/label")
+                    .header("x-rapidapi-host", "image-labeling1.p.rapidapi.com")
+                    .header("x-rapidapi-key", "f889ecc9b1msh8f7bcc1e724b982p15917djsn33b5cdb9222e")
+                    .header("content-type", "application/json")
+                    .header("accept", "application/json")
+                    .body("{\"url\": \"" + url + "\"}")
+                    .asString();
+
+            String[] parts = response.getBody().split("\"");
+            return parts[1] + ", " + parts[3] + ", " + parts[5] + ", " + parts[7] + ", " + parts[9];
+        }
+        catch (Exception e) {
+            System.err.println(e);
+            return "";
+        }
     }
 }
 
